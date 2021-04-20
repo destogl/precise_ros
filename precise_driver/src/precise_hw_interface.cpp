@@ -49,6 +49,8 @@ namespace precise_driver
             boost::bind(&PreciseHWInterface::cancelCB, this, _1),
             false));
 
+        action_server_->start();
+        
         //Doosan like hack
         pnh.param<bool>("doosan_hack_enabled", doosan_hack_enabled_, doosan_hack_enabled_);
 //         sub_follow_joint_goal = driver_nh.subscribe<control_msgs::FollowJointTrajectoryActionGoal>
@@ -328,7 +330,7 @@ namespace precise_driver
 // Try to avoid Doosan hack
     void PreciseHWInterface::goalCB(GoalHandle gh)
     {
-        ROS_DEBUG("Received new action goal");
+        ROS_INFO("Received new action goal");
         control_msgs::FollowJointTrajectoryResult result;
 
         if (!device_->operational()) {
@@ -339,21 +341,29 @@ namespace precise_driver
         }
 
         gh.setAccepted();
-
+        int i = 0;
         for(auto point : gh.getGoal()->trajectory.points)
         {
-            bool ret;
-            point.positions.push_back(joint_position_.back());
-            ret = device_->moveJointPosition(profile_no_, point.positions);
+          if (gh.getGoal()->trajectory.points.size() == 1 || i != 0)
+            {
+              bool ret;
+              point.positions.push_back(joint_position_.back());
+              ret = device_->moveJointPosition(profile_no_, point.positions);
+              ROS_INFO("Sending goal: %f, %f, %f, %f.", point.positions[0], point.positions[1], point.positions[2], point.positions[3]);
+            }
+            ++i;
         }
-
+       
+        ROS_INFO("Wait for command to end.");
+        device_->waitForEom();
+        ROS_INFO("Command ended.");
         result.error_code = control_msgs::FollowJointTrajectoryResult::SUCCESSFUL;
         gh.setSucceeded(result);
     }
 
     void PreciseHWInterface::cancelCB(GoalHandle /*gh*/)
     {
-        ROS_DEBUG("Received cancel action goal. The goal cancellation not implemented!");
+        ROS_INFO("Received cancel action goal. The goal cancellation not implemented!");
 
 //         gh.setCanceled();
     }
@@ -369,6 +379,7 @@ namespace precise_driver
             bool ret;
             point.positions.push_back(joint_position_.back());
             ret = device_->moveJointPosition(profile_no_, point.positions);
+            ROS_INFO("Sending goal: %f, %f, %f, %f.", point.positions[0], point.positions[1], point.positions[2], point.positions[3]);
         }
     }
 
