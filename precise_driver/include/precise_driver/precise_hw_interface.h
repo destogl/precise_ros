@@ -15,7 +15,13 @@
 #include <std_srvs/SetBool.h>
 #include <cob_srvs/SetString.h>
 
-#include <control_msgs/FollowJointTrajectoryActionGoal.h>
+// Avoid Doosan hack and test concept for a new controller
+// actionlib
+#include <actionlib/server/action_server.h>
+
+#include <control_msgs/FollowJointTrajectoryAction.h>
+
+// #include <control_msgs/FollowJointTrajectoryActionGoal.h>
 
 namespace precise_driver
 {
@@ -73,8 +79,17 @@ namespace precise_driver
         bool graspPlateCB(precise_driver::Plate::Request &req, precise_driver::Plate::Response &res);
         bool releasePlateCB(precise_driver::Plate::Request &req, precise_driver::Plate::Response &res);
 
-    //Doosan like Hack
     private:
+    // Try to avoid Doosan hack
+        typedef actionlib::ActionServer<control_msgs::FollowJointTrajectoryAction>                  ActionServer;
+        typedef std::shared_ptr<ActionServer>                                                       ActionServerPtr;
+        typedef ActionServer::GoalHandle                                                            GoalHandle;
+
+        ActionServerPtr action_server_;
+        void goalCB(GoalHandle gh);
+        void cancelCB(GoalHandle gh);
+
+    //Doosan like Hack
         bool doosan_hack_enabled_;
         ros::Subscriber sub_follow_joint_goal;
         void followJointTrajectoryActionGoalCB(const control_msgs::FollowJointTrajectoryActionGoalConstPtr &msg);

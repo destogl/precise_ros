@@ -41,11 +41,19 @@ namespace precise_driver
 
         switch_controller_srv_ = nh_.serviceClient<controller_manager_msgs::SwitchController>("controller_manager/switch_controller");
 
+
+        // Avoid Doosan hack by implementing action server
+        action_server_.reset(new ActionServer(
+            driver_nh, "/arm/joint_trajectory_controller/follow_joint_trajectory",
+            boost::bind(&PreciseHWInterface::goalCB, this, _1),
+            boost::bind(&PreciseHWInterface::cancelCB, this, _1),
+            false));
+
         //Doosan like hack
         pnh.param<bool>("doosan_hack_enabled", doosan_hack_enabled_, doosan_hack_enabled_);
-        sub_follow_joint_goal = driver_nh.subscribe<control_msgs::FollowJointTrajectoryActionGoal>
-                                    ("/arm/joint_trajectory_controller/follow_joint_trajectory/goal", 1, 
-                                    &PreciseHWInterface::followJointTrajectoryActionGoalCB, this);
+//         sub_follow_joint_goal = driver_nh.subscribe<control_msgs::FollowJointTrajectoryActionGoal>
+//                                     ("/arm/joint_trajectory_controller/follow_joint_trajectory/goal", 1,
+//                                     &PreciseHWInterface::followJointTrajectoryActionGoalCB, this);
     }
 
     PreciseHWInterface::~PreciseHWInterface()
@@ -317,8 +325,45 @@ namespace precise_driver
         return (ret && res.ok);
     }
 
+// Try to avoid Doosan hack
+    void PreciseHWInterface::goalCB(GoalHandle gh)
+    {
+        ROS_DEBUG("Received new action goal");
+        control_msgs::FollowJointTrajectoryResult result;
+
+        if (!device_->operational()) {
+            ROS_ERROR("Can't accept new action goals. The robot is not operational.");
+            result.error_code = control_msgs::FollowJointTrajectoryResult::INVALID_GOAL;
+            gh.setRejected(result);
+            return;
+        }
+
+        gh.setAccepted();
+
+        for(auto point : gh.getGoal()->trajectory.points)
+        {
+            bool ret;
+            point.positions.push_back(joint_position_.back());
+            ret = device_->moveJointPosition(profile_no_, point.positions);
+        }
+
+        result.error_code = control_msgs::FollowJointTrajectoryResult::SUCCESSFUL;
+        gh.setSucceeded(result);
+    }
+
+    void PreciseHWInterface::cancelCB(GoalHandle /*gh*/)
+    {
+        ROS_DEBUG("Received cancel action goal. The goal cancellation not implemented!");
+
+//         gh.setCanceled();
+    }
+
+// Doosan hack
     void PreciseHWInterface::followJointTrajectoryActionGoalCB(const control_msgs::FollowJointTrajectoryActionGoalConstPtr &msg)
     {
+        if (!doosan_hack_enabled_) {
+            return;
+        }
         for(auto point : msg->goal.trajectory.points)
         {
             bool ret;
