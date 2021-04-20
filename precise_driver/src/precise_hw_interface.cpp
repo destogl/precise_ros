@@ -348,7 +348,7 @@ namespace precise_driver
             {
               bool ret;
               point.positions.push_back(joint_position_.back());
-              ret = device_->moveJointPosition(profile_no_, point.positions);
+              ret = device_->queueJointPosition(profile_no_, point.positions);
               ROS_INFO("Sending goal: %f, %f, %f, %f.", point.positions[0], point.positions[1], point.positions[2], point.positions[3]);
             }
             ++i;
